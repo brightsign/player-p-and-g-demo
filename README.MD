@@ -21,7 +21,7 @@ ssh brightsign@player 'cd /storage/sd && unzip ext_mon-*.zip && bash ext_mon_ins
 
 - **Prometheus 2.48.0** (ARM64) - Metrics collection and storage
 - **Grafana 10.2.3** (ARM64) - Dashboard and visualization
-- **Pre-configured dashboards** - BrightSign system metrics and Node Exporter Full dashboard
+- **Pre-configured dashboards** - Default Node Exporter Dashboard 15172 plus additional system dashboards
 - **Automatic service management** - Starts on boot, survives reboots
 
 ## Supported Hardware
