@@ -21,7 +21,7 @@ ssh brightsign@player 'cd /storage/sd && unzip ext_mon-*.zip && bash ext_mon_ins
 
 - **Prometheus 2.48.0** (ARM64) - Metrics collection and storage
 - **Grafana 10.2.3** (ARM64) - Dashboard and visualization
-- **Pre-configured dashboards** - BrightSign system metrics
+- **Pre-configured dashboards** - BrightSign system metrics and Node Exporter Full dashboard
 - **Automatic service management** - Starts on boot, survives reboots
 
 ## Supported Hardware
@@ -72,6 +72,33 @@ make help
 - Memory: ~150-200MB combined
 - Storage: ~650MB installed
 - Network: Local only (no external traffic)
+
+## Logging
+
+Service logs are written to writable locations:
+- **Prometheus**: `/var/log/prometheus.log` (or `/tmp/prometheus.log`)
+- **Grafana**: `/var/log/grafana.log` (or `/tmp/grafana_logs/grafana.log`) 
+- **Data**: Prometheus data in `/tmp/prometheus_data`, Grafana data in `/tmp/grafana_data`
+
+## Removal
+
+To remove the extension, you can perform a Factory Reset or remove the extension manually:
+
+```bash
+# Connect to the player over SSH and drop to the Linux shell
+
+# STOP the extension
+/var/volatile/bsext/ext_mon/bsext_init stop
+
+# VERIFY all the processes for your extension have stopped
+ps | grep -E "prometheus|grafana"
+
+# Run the uninstall script
+/var/volatile/bsext/ext_mon/uninstall.sh
+
+# Reboot to apply changes
+reboot
+```
 
 ## License
 

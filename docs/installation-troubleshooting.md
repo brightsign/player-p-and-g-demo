@@ -118,8 +118,12 @@ Check system logs and extension registry settings:
 # Check system logs for errors
 tail -20 /var/log/messages | grep -E "monitoring|prometheus|grafana"
 
+# Check extension service logs
+tail -20 /var/log/prometheus.log 2>/dev/null || tail -20 /tmp/prometheus.log
+tail -20 /var/log/grafana.log 2>/dev/null || tail -20 /tmp/grafana_logs/grafana.log
+
 # Check if auto-start is disabled via registry
-registry extension monitoring-disable-auto-start
+registry extension mon-disable-auto-start
 
 # Check general extension status
 registry extension
@@ -177,19 +181,34 @@ export GF_PATHS_HOME=/var/volatile/bsext/ext_mon/grafana
 - **Cause**: Services binding to wrong interface
 - **Solution**: Check if services are binding to localhost vs 0.0.0.0
 
-## 10. Extension Reinstallation
+## 10. Extension Removal
 
-If all else fails, completely reinstall the extension:
+To remove the extension, you can perform a Factory Reset or remove the extension manually:
+
+### Manual Removal Process
 
 ```bash
-# Stop services
-cd /var/volatile/bsext/ext_mon
-./bsext_init stop
+# Connect to the player over SSH and drop to the Linux shell
 
-# Unmount and remove extension
-cd /
-umount /var/volatile/bsext/ext_mon 2>/dev/null || true
-rm -rf /var/volatile/bsext/ext_mon
+# STOP the extension
+/var/volatile/bsext/ext_mon/bsext_init stop
+
+# VERIFY all the processes for your extension have stopped
+ps | grep -E "prometheus|grafana"
+
+# Run the uninstall script
+/var/volatile/bsext/ext_mon/uninstall.sh
+
+# Reboot to apply changes
+reboot
+```
+
+### Complete Reinstallation
+
+If you need to completely reinstall the extension:
+
+```bash
+# First remove using the steps above, then:
 
 # Re-run installation script
 cd /storage/sd  # or wherever your installation files are
@@ -225,6 +244,8 @@ ls -la /var/volatile/bsext/ext_mon/grafana/bin/grafana-server
 
 # Log files
 tail -50 /var/log/messages | grep -E "monitoring|prometheus|grafana"
+tail -50 /var/log/prometheus.log 2>/dev/null || tail -50 /tmp/prometheus.log
+tail -50 /var/log/grafana.log 2>/dev/null || tail -50 /tmp/grafana_logs/grafana.log
 ```
 
 ## Quick Reference Commands

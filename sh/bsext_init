@@ -18,7 +18,7 @@ EXTENSION_NAME="mon"
 # Service configurations
 PROMETHEUS_BIN="${SCRIPT_PATH}/prometheus/prometheus"
 PROMETHEUS_CONFIG="${SCRIPT_PATH}/prometheus/prometheus.yml"
-PROMETHEUS_DATA="${SCRIPT_PATH}/prometheus/data"
+PROMETHEUS_DATA="/tmp/prometheus_data"
 PROMETHEUS_PIDFILE="/var/run/prometheus.pid"
 PROMETHEUS_PORT=9090
 
@@ -27,6 +27,22 @@ GRAFANA_CONFIG="${SCRIPT_PATH}/grafana/conf/grafana.ini"
 GRAFANA_HOME="${SCRIPT_PATH}/grafana"
 GRAFANA_PIDFILE="/var/run/grafana.pid"
 GRAFANA_PORT=3000
+
+# Writable directories for data and logs
+DATA_BASE_DIR="/tmp"
+if [ -d "/var/log" ] && [ -w "/var/log" ]; then
+    LOG_DIR="/var/log"
+else
+    LOG_DIR="/tmp"
+fi
+
+# Prometheus settings
+PROMETHEUS_LOG="${LOG_DIR}/prometheus.log"
+
+# Grafana settings 
+GRAFANA_DATA_DIR="${DATA_BASE_DIR}/grafana_data"
+GRAFANA_LOG_DIR="${DATA_BASE_DIR}/grafana_logs"
+GRAFANA_LOG="${GRAFANA_LOG_DIR}/grafana.log"
 
 # Function to check if auto-start is disabled
 check_auto_start() {
@@ -49,6 +65,8 @@ start_prometheus() {
     
     # Create data directory if it doesn't exist
     mkdir -p "${PROMETHEUS_DATA}"
+    echo "Using Prometheus data directory: ${PROMETHEUS_DATA}"
+    echo "Using Prometheus log file: ${PROMETHEUS_LOG}"
     
     # Check if binary exists and is executable
     if [ ! -x "${PROMETHEUS_BIN}" ]; then
@@ -68,7 +86,7 @@ start_prometheus() {
             --config.file="${PROMETHEUS_CONFIG}" \
             --storage.tsdb.path="${PROMETHEUS_DATA}" \
             --web.listen-address=":${PROMETHEUS_PORT}" \
-            > "${PROMETHEUS_DATA}/prometheus.log" 2>&1 &
+            > "${PROMETHEUS_LOG}" 2>&1 &
         echo $! > ${PROMETHEUS_PIDFILE}
     else
         echo "Starting Prometheus in foreground on port ${PROMETHEUS_PORT}..."
@@ -84,9 +102,11 @@ start_prometheus() {
 start_grafana() {
     local background=$1
     
-    # Create data directory if it doesn't exist
-    mkdir -p "${GRAFANA_HOME}/data"
-    mkdir -p "${GRAFANA_HOME}/data/logs"
+    # Create writable data directories
+    mkdir -p "${GRAFANA_DATA_DIR}"
+    mkdir -p "${GRAFANA_LOG_DIR}"
+    echo "Using Grafana data directory: ${GRAFANA_DATA_DIR}"
+    echo "Using Grafana log directory: ${GRAFANA_LOG_DIR}"
     
     # Check if binary exists and is executable
     if [ ! -x "${GRAFANA_BIN}" ]; then
@@ -96,9 +116,9 @@ start_grafana() {
     
     # Set Grafana environment variables
     export GF_PATHS_CONFIG="${GRAFANA_CONFIG}"
-    export GF_PATHS_DATA="${GRAFANA_HOME}/data"
+    export GF_PATHS_DATA="${GRAFANA_DATA_DIR}"
     export GF_PATHS_HOME="${GRAFANA_HOME}"
-    export GF_PATHS_LOGS="${GRAFANA_HOME}/data/logs"
+    export GF_PATHS_LOGS="${GRAFANA_LOG_DIR}"
     export GF_PATHS_PLUGINS="${GRAFANA_HOME}/plugins"
     export GF_PATHS_PROVISIONING="${GRAFANA_HOME}/conf/provisioning"
     
@@ -106,12 +126,13 @@ start_grafana() {
         echo "Starting Grafana in background on port ${GRAFANA_PORT}..."
         echo "Binary: ${GRAFANA_BIN}"
         echo "Config: ${GRAFANA_CONFIG}"
-        echo "Data: ${GRAFANA_HOME}/data"
+        echo "Data: ${GRAFANA_DATA_DIR}"
+        echo "Logs: ${GRAFANA_LOG_DIR}"
         
         # Use nohup instead of start-stop-daemon for better compatibility
         cd "${GRAFANA_HOME}"
         nohup "${GRAFANA_BIN}" \
-            > "${GRAFANA_HOME}/data/logs/grafana.log" 2>&1 &
+            > "${GRAFANA_LOG}" 2>&1 &
         echo $! > ${GRAFANA_PIDFILE}
     else
         echo "Starting Grafana in foreground on port ${GRAFANA_PORT}..."
@@ -177,6 +198,13 @@ do_start() {
     fi
     
     echo "Starting monitoring services..."
+    echo "Log files will be written to:"
+    echo "  Prometheus: ${PROMETHEUS_LOG}"
+    echo "  Grafana: ${GRAFANA_LOG}"
+    echo "Data directories:"
+    echo "  Prometheus: ${PROMETHEUS_DATA}"
+    echo "  Grafana: ${GRAFANA_DATA_DIR}"
+    echo ""
     
     # Start Prometheus
     start_prometheus true

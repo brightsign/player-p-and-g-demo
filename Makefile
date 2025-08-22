@@ -108,9 +108,8 @@ endif
 # Output files
 SQUASHFS_FILE := $(OUTPUT_DIR)/ext_$(EXTENSION_NAME).squashfs
 INSTALL_SCRIPT_LVM := $(OUTPUT_DIR)/ext_$(EXTENSION_NAME)_install-lvm.sh
-# Package file extension determined at build time
-PACKAGE_EXT := $(shell if command -v zip >/dev/null 2>&1; then echo zip; else echo tar.gz; fi)
-PACKAGE_FILE := $(OUTPUT_DIR)/ext_$(EXTENSION_NAME)-$(TIMESTAMP).$(PACKAGE_EXT)
+# Package file is always zip format
+PACKAGE_FILE := $(OUTPUT_DIR)/ext_$(EXTENSION_NAME)-$(TIMESTAMP).zip
 
 # Colors for output
 RED := \033[0;31m
@@ -244,25 +243,25 @@ configure: prepare
 	@cp $(CONFIG_DIR)/grafana/provisioning/dashboards/*.yaml $(INSTALL_DIR)/grafana/conf/provisioning/dashboards/ 2>/dev/null || true
 	@cp $(CONFIG_DIR)/grafana/provisioning/dashboards/*.json $(INSTALL_DIR)/grafana/conf/provisioning/dashboards/ 2>/dev/null || true
 	@cp $(SCRIPTS_DIR)/bsext_init $(INSTALL_DIR)/
+	@cp $(SCRIPTS_DIR)/uninstall.sh $(INSTALL_DIR)/
 	@chmod +x $(INSTALL_DIR)/bsext_init
+	@chmod +x $(INSTALL_DIR)/uninstall.sh
 	@echo "$(GREEN)✓ Configuration complete$(NC)"
 
 # Create squashfs filesystem
 .PHONY: squashfs
 squashfs: configure
 	@echo "$(YELLOW)→ Creating squashfs filesystem...$(NC)"
-	@if command -v mksquashfs >/dev/null 2>&1; then \
-		mksquashfs $(INSTALL_DIR) $(SQUASHFS_FILE) -comp gzip -noappend; \
-		echo "$(GREEN)✓ Squashfs created$(NC)"; \
-	elif command -v zip >/dev/null 2>&1; then \
-		echo "$(YELLOW)⚠ mksquashfs not found, creating zip archive instead$(NC)"; \
-		cd $(INSTALL_DIR) && zip -r ../$(SQUASHFS_FILE) .; \
-		echo "$(GREEN)✓ Archive created (zip format)$(NC)"; \
-	else \
-		echo "$(YELLOW)⚠ Neither mksquashfs nor zip found, creating tar.gz archive$(NC)"; \
-		tar -czf $(SQUASHFS_FILE) -C $(INSTALL_DIR) .; \
-		echo "$(GREEN)✓ Archive created (tar.gz format)$(NC)"; \
+	@if ! command -v mksquashfs >/dev/null 2>&1; then \
+		echo "$(RED)✗ Error: squashfs-tools not installed$(NC)"; \
+		echo "Please install squashfs-tools:"; \
+		echo "  Ubuntu/Debian: sudo apt-get install squashfs-tools"; \
+		echo "  RHEL/CentOS: sudo yum install squashfs-tools"; \
+		echo "  macOS: brew install squashfs"; \
+		exit 1; \
 	fi
+	@mksquashfs $(INSTALL_DIR) $(SQUASHFS_FILE) -comp gzip -noappend
+	@echo "$(GREEN)✓ Squashfs created$(NC)"
 
 # Generate installation scripts
 .PHONY: scripts
@@ -341,16 +340,9 @@ generate-lvm-script:
 .PHONY: package
 package: scripts
 	@echo "$(YELLOW)→ Creating final package...$(NC)"
-	@if command -v zip >/dev/null 2>&1; then \
-		cd $(OUTPUT_DIR) && zip -j ext_$(EXTENSION_NAME)-$(TIMESTAMP).zip \
-			ext_$(EXTENSION_NAME).squashfs \
-			ext_$(EXTENSION_NAME)_install-lvm.sh; \
-	else \
-		echo "$(YELLOW)⚠ zip not found, creating tar.gz package$(NC)"; \
-		cd $(OUTPUT_DIR) && tar -czf ext_$(EXTENSION_NAME)-$(TIMESTAMP).tar.gz \
-			ext_$(EXTENSION_NAME).squashfs \
-			ext_$(EXTENSION_NAME)_install-lvm.sh; \
-	fi
+	@cd $(OUTPUT_DIR) && zip -j ext_$(EXTENSION_NAME)-$(TIMESTAMP).zip \
+		ext_$(EXTENSION_NAME).squashfs \
+		ext_$(EXTENSION_NAME)_install-lvm.sh
 	@$(MAKE) -s generate-readme
 	@echo "$(GREEN)✓ Package created: $(PACKAGE_FILE)$(NC)"
 	@echo ""
@@ -470,7 +462,7 @@ test:
 	@echo "Checking for required tools..."
 	@command -v curl >/dev/null 2>&1 && echo "✓ curl found" || echo "✗ curl not found"
 	@command -v tar >/dev/null 2>&1 && echo "✓ tar found" || echo "✗ tar not found"
-	@command -v mksquashfs >/dev/null 2>&1 && echo "✓ mksquashfs found" || echo "⚠ mksquashfs not found (will use tar)"
+	@command -v mksquashfs >/dev/null 2>&1 && echo "✓ mksquashfs found" || echo "✗ mksquashfs not found (REQUIRED)"
 	@echo ""
 	@echo "Checking directories..."
 	@test -d $(CONFIG_DIR) && echo "✓ Config directory exists" || echo "✗ Config directory missing"
@@ -638,7 +630,7 @@ deps:
 		brew install squashfs curl; \
 	else \
 		echo "$(RED)✗ Unable to install dependencies automatically$(NC)"; \
-		echo "Please install: squashfs-tools, curl, tar"; \
+		echo "Please install: squashfs-tools (REQUIRED), curl, tar"; \
 	fi
 
 .PHONY: quick
@@ -676,12 +668,14 @@ vars:
 	@echo "OUTPUT_DIR         = $(OUTPUT_DIR)"
 	@echo "PACKAGE_FILE       = $(PACKAGE_FILE)"
 
-# Default if squashfs-tools not available
-.PHONY: zip-package
-zip-package: configure
-	@echo "$(YELLOW)→ Creating zip package (fallback)...$(NC)"
-	@cd $(INSTALL_DIR) && zip -r ../$(OUTPUT_DIR)/$(EXTENSION_NAME).zip .
-	@echo "$(GREEN)✓ Zip package created$(NC)"
+# Check squashfs tools availability
+.PHONY: check-squashfs
+check-squashfs:
+	@if ! command -v mksquashfs >/dev/null 2>&1; then \
+		echo "$(RED)✗ Error: squashfs-tools not installed$(NC)"; \
+		echo "Please install squashfs-tools to continue"; \
+		exit 1; \
+	fi
 
 # Phony target to force rebuilds
 .PHONY: force
