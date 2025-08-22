@@ -1,0 +1,266 @@
+#!/bin/bash
+### BEGIN INIT INFO
+# Provides:          mon
+# Required-Start:    $network $remote_fs $syslog
+# Required-Stop:     $network $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Prometheus and Grafana Monitoring
+# Description:       Local monitoring stack for BrightSign players
+### END INIT INFO
+
+# Source function library if it exists
+[ -f /etc/init.d/functions ] && . /etc/init.d/functions
+
+SCRIPT_PATH=$(dirname $(realpath $0))
+EXTENSION_NAME="mon"
+
+# Service configurations
+PROMETHEUS_BIN="${SCRIPT_PATH}/prometheus/prometheus"
+PROMETHEUS_CONFIG="${SCRIPT_PATH}/prometheus/prometheus.yml"
+PROMETHEUS_DATA="${SCRIPT_PATH}/prometheus/data"
+PROMETHEUS_PIDFILE="/var/run/prometheus.pid"
+PROMETHEUS_PORT=9090
+
+GRAFANA_BIN="${SCRIPT_PATH}/grafana/bin/grafana-server"
+GRAFANA_CONFIG="${SCRIPT_PATH}/grafana/conf/grafana.ini"
+GRAFANA_HOME="${SCRIPT_PATH}/grafana"
+GRAFANA_PIDFILE="/var/run/grafana.pid"
+GRAFANA_PORT=3000
+
+# Function to check if auto-start is disabled
+check_auto_start() {
+    local DISABLE_AUTO_START="false"
+    local reg_disable=$(registry extension ${EXTENSION_NAME}-disable-auto-start 2>/dev/null)
+    if [ -n "${reg_disable}" ]; then
+        DISABLE_AUTO_START=${reg_disable}
+    fi
+    
+    if [ "${DISABLE_AUTO_START}" = "true" ]; then
+        echo "Auto-start is disabled for ${EXTENSION_NAME}"
+        return 1
+    fi
+    return 0
+}
+
+# Function to start Prometheus
+start_prometheus() {
+    local background=$1
+    
+    # Create data directory if it doesn't exist
+    mkdir -p "${PROMETHEUS_DATA}"
+    
+    # Check if binary exists and is executable
+    if [ ! -x "${PROMETHEUS_BIN}" ]; then
+        echo "ERROR: Prometheus binary not found or not executable: ${PROMETHEUS_BIN}"
+        return 1
+    fi
+    
+    if [ "$background" = "true" ]; then
+        echo "Starting Prometheus in background on port ${PROMETHEUS_PORT}..."
+        echo "Binary: ${PROMETHEUS_BIN}"
+        echo "Config: ${PROMETHEUS_CONFIG}"
+        echo "Data: ${PROMETHEUS_DATA}"
+        
+        # Use nohup instead of start-stop-daemon for better compatibility
+        cd "${SCRIPT_PATH}/prometheus"
+        nohup "${PROMETHEUS_BIN}" \
+            --config.file="${PROMETHEUS_CONFIG}" \
+            --storage.tsdb.path="${PROMETHEUS_DATA}" \
+            --web.listen-address=":${PROMETHEUS_PORT}" \
+            > "${PROMETHEUS_DATA}/prometheus.log" 2>&1 &
+        echo $! > ${PROMETHEUS_PIDFILE}
+    else
+        echo "Starting Prometheus in foreground on port ${PROMETHEUS_PORT}..."
+        cd "${SCRIPT_PATH}/prometheus"
+        "${PROMETHEUS_BIN}" \
+            --config.file="${PROMETHEUS_CONFIG}" \
+            --storage.tsdb.path="${PROMETHEUS_DATA}" \
+            --web.listen-address=":${PROMETHEUS_PORT}"
+    fi
+}
+
+# Function to start Grafana
+start_grafana() {
+    local background=$1
+    
+    # Create data directory if it doesn't exist
+    mkdir -p "${GRAFANA_HOME}/data"
+    mkdir -p "${GRAFANA_HOME}/data/logs"
+    
+    # Check if binary exists and is executable
+    if [ ! -x "${GRAFANA_BIN}" ]; then
+        echo "ERROR: Grafana binary not found or not executable: ${GRAFANA_BIN}"
+        return 1
+    fi
+    
+    # Set Grafana environment variables
+    export GF_PATHS_CONFIG="${GRAFANA_CONFIG}"
+    export GF_PATHS_DATA="${GRAFANA_HOME}/data"
+    export GF_PATHS_HOME="${GRAFANA_HOME}"
+    export GF_PATHS_LOGS="${GRAFANA_HOME}/data/logs"
+    export GF_PATHS_PLUGINS="${GRAFANA_HOME}/plugins"
+    export GF_PATHS_PROVISIONING="${GRAFANA_HOME}/conf/provisioning"
+    
+    if [ "$background" = "true" ]; then
+        echo "Starting Grafana in background on port ${GRAFANA_PORT}..."
+        echo "Binary: ${GRAFANA_BIN}"
+        echo "Config: ${GRAFANA_CONFIG}"
+        echo "Data: ${GRAFANA_HOME}/data"
+        
+        # Use nohup instead of start-stop-daemon for better compatibility
+        cd "${GRAFANA_HOME}"
+        nohup "${GRAFANA_BIN}" \
+            > "${GRAFANA_HOME}/data/logs/grafana.log" 2>&1 &
+        echo $! > ${GRAFANA_PIDFILE}
+    else
+        echo "Starting Grafana in foreground on port ${GRAFANA_PORT}..."
+        cd "${GRAFANA_HOME}"
+        "${GRAFANA_BIN}"
+    fi
+}
+
+# Function to stop Prometheus
+stop_prometheus() {
+    if [ -f ${PROMETHEUS_PIDFILE} ]; then
+        echo "Stopping Prometheus..."
+        PID=$(cat ${PROMETHEUS_PIDFILE})
+        if kill -0 $PID 2>/dev/null; then
+            kill $PID
+            # Wait up to 10 seconds for graceful shutdown
+            for i in $(seq 1 10); do
+                if ! kill -0 $PID 2>/dev/null; then
+                    break
+                fi
+                sleep 1
+            done
+            # Force kill if still running
+            if kill -0 $PID 2>/dev/null; then
+                kill -9 $PID
+            fi
+        fi
+        rm -f ${PROMETHEUS_PIDFILE}
+    else
+        echo "Prometheus is not running"
+    fi
+}
+
+# Function to stop Grafana
+stop_grafana() {
+    if [ -f ${GRAFANA_PIDFILE} ]; then
+        echo "Stopping Grafana..."
+        PID=$(cat ${GRAFANA_PIDFILE})
+        if kill -0 $PID 2>/dev/null; then
+            kill $PID
+            # Wait up to 10 seconds for graceful shutdown
+            for i in $(seq 1 10); do
+                if ! kill -0 $PID 2>/dev/null; then
+                    break
+                fi
+                sleep 1
+            done
+            # Force kill if still running
+            if kill -0 $PID 2>/dev/null; then
+                kill -9 $PID
+            fi
+        fi
+        rm -f ${GRAFANA_PIDFILE}
+    else
+        echo "Grafana is not running"
+    fi
+}
+
+# Main start function
+do_start() {
+    if ! check_auto_start; then
+        return
+    fi
+    
+    echo "Starting monitoring services..."
+    
+    # Start Prometheus
+    start_prometheus true
+    sleep 2
+    
+    # Start Grafana
+    start_grafana true
+    sleep 2
+    
+    echo "Monitoring services started"
+    echo "Prometheus: http://localhost:${PROMETHEUS_PORT}"
+    echo "Grafana: http://localhost:${GRAFANA_PORT}"
+}
+
+# Main stop function
+do_stop() {
+    echo "Stopping monitoring services..."
+    stop_grafana
+    stop_prometheus
+    echo "Monitoring services stopped"
+}
+
+# Main run function (foreground)
+do_run() {
+    echo "Running monitoring services in foreground..."
+    echo "Press Ctrl+C to stop"
+    
+    # Start Prometheus in background even in run mode
+    start_prometheus true
+    sleep 2
+    
+    # Run Grafana in foreground (will keep the script running)
+    start_grafana false
+}
+
+# Status function
+do_status() {
+    local prometheus_running=false
+    local grafana_running=false
+    
+    if [ -f ${PROMETHEUS_PIDFILE} ] && kill -0 $(cat ${PROMETHEUS_PIDFILE}) 2>/dev/null; then
+        prometheus_running=true
+        echo "Prometheus is running (PID: $(cat ${PROMETHEUS_PIDFILE}))"
+    else
+        echo "Prometheus is not running"
+    fi
+    
+    if [ -f ${GRAFANA_PIDFILE} ] && kill -0 $(cat ${GRAFANA_PIDFILE}) 2>/dev/null; then
+        grafana_running=true
+        echo "Grafana is running (PID: $(cat ${GRAFANA_PIDFILE}))"
+    else
+        echo "Grafana is not running"
+    fi
+    
+    if [ "$prometheus_running" = true ] && [ "$grafana_running" = true ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Main case statement
+case "$1" in
+    start)
+        do_start
+        ;;
+    stop)
+        do_stop
+        ;;
+    restart)
+        do_stop
+        sleep 2
+        do_start
+        ;;
+    run)
+        do_run
+        ;;
+    status)
+        do_status
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|run|status}"
+        exit 1
+        ;;
+esac
+
+exit 0
