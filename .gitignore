@@ -1,0 +1,61 @@
+# BrightSign Extension Build Artifacts
+*.squashfs
+*.tar.gz
+*.zip
+
+# Extension packages and binaries
+ext_mon*
+ext_monitoring*
+
+# Build directories
+brightsign-oe/
+build*/
+install/
+install-test/
+output/
+output-test/
+extension-*-temp/
+sdk/
+
+# Downloaded binaries and toolchains
+binaries/
+prometheus-*
+grafana-*
+brightsign-*-toolchain-*.sh
+
+# Log files
+*.log
+*.pid
+
+# Temporary files
+*.tmp
+*.temp
+/tmp/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Backup files
+*.bak
+*.orig
+
+# Large binary executables (in case they get copied locally)
+prometheus
+grafana
+grafana-server
+grafana-cli
+
+# Package and debug files
+PACKAGE_CONTENTS.txt
+BUILD_SUMMARY.md
+DEPLOYMENT.md
+debug-*.sh
+test-*.log

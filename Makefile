@@ -108,7 +108,9 @@ endif
 # Output files
 SQUASHFS_FILE := $(OUTPUT_DIR)/ext_$(EXTENSION_NAME).squashfs
 INSTALL_SCRIPT_LVM := $(OUTPUT_DIR)/ext_$(EXTENSION_NAME)_install-lvm.sh
-PACKAGE_FILE := $(OUTPUT_DIR)/ext_$(EXTENSION_NAME)-$(TIMESTAMP).zip
+# Package file extension determined at build time
+PACKAGE_EXT := $(shell if command -v zip >/dev/null 2>&1; then echo zip; else echo tar.gz; fi)
+PACKAGE_FILE := $(OUTPUT_DIR)/ext_$(EXTENSION_NAME)-$(TIMESTAMP).$(PACKAGE_EXT)
 
 # Colors for output
 RED := \033[0;31m
@@ -252,10 +254,14 @@ squashfs: configure
 	@if command -v mksquashfs >/dev/null 2>&1; then \
 		mksquashfs $(INSTALL_DIR) $(SQUASHFS_FILE) -comp gzip -noappend; \
 		echo "$(GREEN)✓ Squashfs created$(NC)"; \
-	else \
+	elif command -v zip >/dev/null 2>&1; then \
 		echo "$(YELLOW)⚠ mksquashfs not found, creating zip archive instead$(NC)"; \
 		cd $(INSTALL_DIR) && zip -r ../$(SQUASHFS_FILE) .; \
 		echo "$(GREEN)✓ Archive created (zip format)$(NC)"; \
+	else \
+		echo "$(YELLOW)⚠ Neither mksquashfs nor zip found, creating tar.gz archive$(NC)"; \
+		tar -czf $(SQUASHFS_FILE) -C $(INSTALL_DIR) .; \
+		echo "$(GREEN)✓ Archive created (tar.gz format)$(NC)"; \
 	fi
 
 # Generate installation scripts
@@ -265,78 +271,69 @@ scripts: squashfs
 	@$(MAKE) -s generate-lvm-script
 	@echo "$(GREEN)✓ Installation script created$(NC)"
 
-# Generate LVM installation script (simple hardcoded style like NPU gaze)
+# Generate LVM installation script (fully hardcoded like NPU gaze)
 .PHONY: generate-lvm-script
 generate-lvm-script:
-	@echo '#!/bin/sh' > $(INSTALL_SCRIPT_LVM)
-	@echo '# This install script is only useful during development.' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'set -xe' >> $(INSTALL_SCRIPT_LVM)
-	@echo '' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'echo "Trying to unmount $(EXTENSION_NAME) volume"' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'if [ -d '\''/var/volatile/bsext/ext_$(EXTENSION_NAME)'\'' ]; then' >> $(INSTALL_SCRIPT_LVM)
-	@echo '    umount /var/volatile/bsext/ext_$(EXTENSION_NAME)' >> $(INSTALL_SCRIPT_LVM)
-	@echo '    rmdir /var/volatile/bsext/ext_$(EXTENSION_NAME)' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'fi' >> $(INSTALL_SCRIPT_LVM)
-	@echo '' >> $(INSTALL_SCRIPT_LVM)
-	@echo '# Remove dm-verity mapping' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'if [ -b '\''/dev/mapper/bsos-ext_$(EXTENSION_NAME)-verified'\'' ]; then' >> $(INSTALL_SCRIPT_LVM)
-	@echo '    veritysetup close '\''bsos-ext_$(EXTENSION_NAME)-verified'\''' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'fi' >> $(INSTALL_SCRIPT_LVM)
-	@echo '' >> $(INSTALL_SCRIPT_LVM)
-	@echo '# Remove old volumes' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'if [ -b '\''/dev/mapper/bsos-ext_$(EXTENSION_NAME)'\'' ]; then' >> $(INSTALL_SCRIPT_LVM)
-	@echo '    lvremove --yes '\''/dev/mapper/bsos-ext_$(EXTENSION_NAME)'\''' >> $(INSTALL_SCRIPT_LVM)
-	@echo '    rm -f '\''/dev/mapper/bsos-ext_$(EXTENSION_NAME)'\''' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'fi' >> $(INSTALL_SCRIPT_LVM)
-	@echo '' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'if [ -b '\''/dev/mapper/bsos-tmp_$(EXTENSION_NAME)'\'' ]; then' >> $(INSTALL_SCRIPT_LVM)
-	@echo '    lvremove --yes '\''/dev/mapper/bsos-tmp_$(EXTENSION_NAME)'\''' >> $(INSTALL_SCRIPT_LVM)
-	@echo '    rm -f '\''/dev/mapper/bsos-tmp_$(EXTENSION_NAME)'\''' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'fi' >> $(INSTALL_SCRIPT_LVM)
-	@echo '' >> $(INSTALL_SCRIPT_LVM)
-	@echo '# Clean up any broken volumes from previous attempts' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'if [ -b '\''/dev/mapper/bsos-ext_'\'' ]; then' >> $(INSTALL_SCRIPT_LVM)
-	@echo '    echo "Cleaning up broken volumes from previous attempts"' >> $(INSTALL_SCRIPT_LVM)
-	@echo '    lvremove --yes '\''/dev/mapper/bsos-ext_'\'' || true' >> $(INSTALL_SCRIPT_LVM)
-	@echo '    rm -f '\''/dev/mapper/bsos-ext_'\'' || true' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'fi' >> $(INSTALL_SCRIPT_LVM)
-	@echo '' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'if [ -b '\''/dev/mapper/bsos-tmp_ext_'\'' ]; then' >> $(INSTALL_SCRIPT_LVM)
-	@echo '    lvremove --yes '\''/dev/mapper/bsos-tmp_ext_'\'' || true' >> $(INSTALL_SCRIPT_LVM)
-	@echo '    rm -f '\''/dev/mapper/bsos-tmp_ext_'\'' || true' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'fi' >> $(INSTALL_SCRIPT_LVM)
-	@echo '' >> $(INSTALL_SCRIPT_LVM)
-	@echo '# Create new LVM volume (calculate size from actual file)' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'IMAGE_SIZE=$$(stat --format=%s ext_$(EXTENSION_NAME).squashfs)' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'VOLUME_SIZE=$$(($$IMAGE_SIZE + 4096))' >> $(INSTALL_SCRIPT_LVM)
-	@echo '' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'echo "Creating LVM volume with size: $${VOLUME_SIZE} bytes"' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'lvcreate --yes --size $${VOLUME_SIZE}b -n '\''tmp_$(EXTENSION_NAME)'\'' bsos' >> $(INSTALL_SCRIPT_LVM)
-	@echo '' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'echo Writing image to tmp_$(EXTENSION_NAME) volume...' >> $(INSTALL_SCRIPT_LVM)
-	@echo '(cat ext_$(EXTENSION_NAME).squashfs && dd if=/dev/zero bs=4096 count=1) > /dev/mapper/bsos-tmp_$(EXTENSION_NAME)' >> $(INSTALL_SCRIPT_LVM)
-	@echo '' >> $(INSTALL_SCRIPT_LVM)
-	@echo '# Verify the image' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'IMAGE_SIZE_PAGES=$$(($$IMAGE_SIZE/4096))' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'check="`dd '\''if=/dev/mapper/bsos-tmp_$(EXTENSION_NAME)'\'' bs=4096 count=$${IMAGE_SIZE_PAGES} 2>/dev/null | sha256sum | cut -c-64`"' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'EXPECTED_SHA=$$(sha256sum ext_$(EXTENSION_NAME).squashfs | cut -c-64)' >> $(INSTALL_SCRIPT_LVM)
-	@echo '' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'if [ "$${check}" != "$${EXPECTED_SHA}" ]; then' >> $(INSTALL_SCRIPT_LVM)
-	@echo '    echo "VERIFY FAILURE for tmp_$(EXTENSION_NAME) volume"' >> $(INSTALL_SCRIPT_LVM)
-	@echo '    echo "Expected: $${EXPECTED_SHA}"' >> $(INSTALL_SCRIPT_LVM)
-	@echo '    echo "Got: $${check}"' >> $(INSTALL_SCRIPT_LVM)
-	@echo '    lvremove --yes '\''/dev/mapper/bsos-tmp_$(EXTENSION_NAME)'\'' || true' >> $(INSTALL_SCRIPT_LVM)
-	@echo '    exit 4' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'fi' >> $(INSTALL_SCRIPT_LVM)
-	@echo '' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'echo "Verification successful"' >> $(INSTALL_SCRIPT_LVM)
-	@echo '' >> $(INSTALL_SCRIPT_LVM)
-	@echo '# Rename to final volume name' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'lvrename bsos '\''tmp_$(EXTENSION_NAME)'\'' '\''ext_$(EXTENSION_NAME)'\''' >> $(INSTALL_SCRIPT_LVM)
-	@echo '' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'echo ""' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'echo "Installation complete!"' >> $(INSTALL_SCRIPT_LVM)
-	@echo 'echo "Extension will be mounted at /var/volatile/bsext/ext_$(EXTENSION_NAME)/ after reboot"' >> $(INSTALL_SCRIPT_LVM)
+	@echo "$(YELLOW)→ Calculating hardcoded values for installation script...$(NC)"
+	@IMAGE_SIZE=$$(if stat --format=%s $(SQUASHFS_FILE) 2>/dev/null >/dev/null; then stat --format=%s $(SQUASHFS_FILE); else stat -f %z $(SQUASHFS_FILE); fi) && \
+	VOLUME_SIZE=$$((($$IMAGE_SIZE + 4096 + 511) / 512 * 512)) && \
+	IMAGE_SIZE_PAGES=$$(($$IMAGE_SIZE / 4096)) && \
+	SHA256=$$( (cat $(SQUASHFS_FILE) && dd if=/dev/zero bs=4096 count=1 2>/dev/null) | dd bs=4096 count=$$IMAGE_SIZE_PAGES 2>/dev/null | if sha256sum --version 2>/dev/null >/dev/null; then sha256sum | cut -c1-64; else shasum -a 256 | cut -c1-64; fi ) && \
+	echo "  Image Size: $$IMAGE_SIZE bytes" && \
+	echo "  Volume Size: $$VOLUME_SIZE bytes" && \
+	echo "  Image Pages: $$IMAGE_SIZE_PAGES pages" && \
+	echo "  SHA256: $$SHA256" && \
+	echo '#!/bin/sh' > $(INSTALL_SCRIPT_LVM) && \
+	echo '# This install script is only useful during development.' >> $(INSTALL_SCRIPT_LVM) && \
+	echo 'set -xe' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '' >> $(INSTALL_SCRIPT_LVM) && \
+	echo 'echo "Trying to unmount $(EXTENSION_NAME) volume"' >> $(INSTALL_SCRIPT_LVM) && \
+	echo 'if [ -d '\''/var/volatile/bsext/ext_$(EXTENSION_NAME)'\'' ]; then' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '    umount /var/volatile/bsext/ext_$(EXTENSION_NAME)' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '    rmdir /var/volatile/bsext/ext_$(EXTENSION_NAME)' >> $(INSTALL_SCRIPT_LVM) && \
+	echo 'fi' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '# Remove dm-verity mapping' >> $(INSTALL_SCRIPT_LVM) && \
+	echo 'if [ -b '\''/dev/mapper/bsos-ext_$(EXTENSION_NAME)-verified'\'' ]; then' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '    veritysetup close '\''bsos-ext_$(EXTENSION_NAME)-verified'\''' >> $(INSTALL_SCRIPT_LVM) && \
+	echo 'fi' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '# Remove old volumes' >> $(INSTALL_SCRIPT_LVM) && \
+	echo 'if [ -b '\''/dev/mapper/bsos-ext_$(EXTENSION_NAME)'\'' ]; then' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '    lvremove --yes '\''/dev/mapper/bsos-ext_$(EXTENSION_NAME)'\''' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '    rm -f '\''/dev/mapper/bsos-ext_$(EXTENSION_NAME)'\''' >> $(INSTALL_SCRIPT_LVM) && \
+	echo 'fi' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '' >> $(INSTALL_SCRIPT_LVM) && \
+	echo 'if [ -b '\''/dev/mapper/bsos-tmp_$(EXTENSION_NAME)'\'' ]; then' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '    lvremove --yes '\''/dev/mapper/bsos-tmp_$(EXTENSION_NAME)'\''' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '    rm -f '\''/dev/mapper/bsos-tmp_$(EXTENSION_NAME)'\''' >> $(INSTALL_SCRIPT_LVM) && \
+	echo 'fi' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '# Clean up any broken volumes from previous attempts' >> $(INSTALL_SCRIPT_LVM) && \
+	echo 'if [ -b '\''/dev/mapper/bsos-ext_'\'' ]; then' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '    echo "Cleaning up broken volumes from previous attempts"' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '    lvremove --yes '\''/dev/mapper/bsos-ext_'\'' || true' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '    rm -f '\''/dev/mapper/bsos-ext_'\'' || true' >> $(INSTALL_SCRIPT_LVM) && \
+	echo 'fi' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '' >> $(INSTALL_SCRIPT_LVM) && \
+	echo 'if [ -b '\''/dev/mapper/bsos-tmp_ext_'\'' ]; then' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '    lvremove --yes '\''/dev/mapper/bsos-tmp_ext_'\'' || true' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '    rm -f '\''/dev/mapper/bsos-tmp_ext_'\'' || true' >> $(INSTALL_SCRIPT_LVM) && \
+	echo 'fi' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '' >> $(INSTALL_SCRIPT_LVM) && \
+	echo "lvcreate --yes --size $${VOLUME_SIZE}b -n 'tmp_$(EXTENSION_NAME)' bsos" >> $(INSTALL_SCRIPT_LVM) && \
+	echo '' >> $(INSTALL_SCRIPT_LVM) && \
+	echo 'echo Writing image to tmp_$(EXTENSION_NAME) volume...' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '(cat ext_$(EXTENSION_NAME).squashfs && dd if=/dev/zero bs=4096 count=1) > /dev/mapper/bsos-tmp_$(EXTENSION_NAME)' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '' >> $(INSTALL_SCRIPT_LVM) && \
+	echo "check=\"\`dd 'if=/dev/mapper/bsos-tmp_$(EXTENSION_NAME)' bs=4096 count=$$IMAGE_SIZE_PAGES 2>/dev/null | sha256sum | cut -c-64\`\"" >> $(INSTALL_SCRIPT_LVM) && \
+	echo "if [ \"\$$check\" != \"$$SHA256\" ]; then" >> $(INSTALL_SCRIPT_LVM) && \
+	echo '    echo "VERIFY FAILURE for tmp_$(EXTENSION_NAME) volume"' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '    lvremove --yes '\''/dev/mapper/bsos-tmp_$(EXTENSION_NAME)'\'' || true' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '    exit 4' >> $(INSTALL_SCRIPT_LVM) && \
+	echo 'fi' >> $(INSTALL_SCRIPT_LVM) && \
+	echo '' >> $(INSTALL_SCRIPT_LVM) && \
+	echo 'lvrename bsos '\''tmp_$(EXTENSION_NAME)'\'' '\''ext_$(EXTENSION_NAME)'\''' >> $(INSTALL_SCRIPT_LVM)
 	@chmod +x $(INSTALL_SCRIPT_LVM)
 
 
@@ -344,9 +341,16 @@ generate-lvm-script:
 .PHONY: package
 package: scripts
 	@echo "$(YELLOW)→ Creating final package...$(NC)"
-	@cd $(OUTPUT_DIR) && zip -j ext_$(EXTENSION_NAME)-$(TIMESTAMP).zip \
-		ext_$(EXTENSION_NAME).squashfs \
-		ext_$(EXTENSION_NAME)_install-lvm.sh
+	@if command -v zip >/dev/null 2>&1; then \
+		cd $(OUTPUT_DIR) && zip -j ext_$(EXTENSION_NAME)-$(TIMESTAMP).zip \
+			ext_$(EXTENSION_NAME).squashfs \
+			ext_$(EXTENSION_NAME)_install-lvm.sh; \
+	else \
+		echo "$(YELLOW)⚠ zip not found, creating tar.gz package$(NC)"; \
+		cd $(OUTPUT_DIR) && tar -czf ext_$(EXTENSION_NAME)-$(TIMESTAMP).tar.gz \
+			ext_$(EXTENSION_NAME).squashfs \
+			ext_$(EXTENSION_NAME)_install-lvm.sh; \
+	fi
 	@$(MAKE) -s generate-readme
 	@echo "$(GREEN)✓ Package created: $(PACKAGE_FILE)$(NC)"
 	@echo ""
@@ -383,14 +387,25 @@ show-summary:
 	@echo "Extension Name:     $(EXTENSION_NAME)"
 	@echo "Prometheus Version: $(PROMETHEUS_VERSION)"
 	@echo "Grafana Version:    $(GRAFANA_VERSION)"
-	@echo "Package File:       $(PACKAGE_FILE)"
-	@echo "Package Size:       $$(du -h $(PACKAGE_FILE) | cut -f1)"
+	@ACTUAL_PACKAGE=$$(ls $(OUTPUT_DIR)/ext_$(EXTENSION_NAME)-*.zip 2>/dev/null | head -1) && \
+	if [ -f "$$ACTUAL_PACKAGE" ]; then \
+		echo "Package File:       $$ACTUAL_PACKAGE"; \
+		echo "Package Size:       $$(du -h $$ACTUAL_PACKAGE | cut -f1)"; \
+	else \
+		echo "Package File:       $(PACKAGE_FILE) (not found)"; \
+		echo "Package Size:       N/A"; \
+	fi
 	@echo "Install Size:       $$(du -sh $(INSTALL_DIR) | cut -f1)"
 	@echo ""
 	@echo "$(GREEN)Next Steps:$(NC)"
-	@echo "1. Transfer $(PACKAGE_FILE) to BrightSign player"
-	@echo "2. Extract and run installation script"
-	@echo "3. Reboot player to activate monitoring"
+	@ACTUAL_PACKAGE=$$(ls $(OUTPUT_DIR)/ext_$(EXTENSION_NAME)-*.zip 2>/dev/null | head -1) && \
+	if [ -f "$$ACTUAL_PACKAGE" ]; then \
+		echo "1. Transfer $$ACTUAL_PACKAGE to BrightSign player"; \
+		echo "2. Extract and run installation script"; \
+		echo "3. Reboot player to activate monitoring"; \
+	else \
+		echo "1. Package file not found - check build output"; \
+	fi
 	@echo ""
 	@echo "Web Interfaces:"
 	@echo "  Prometheus: http://player:9090"
