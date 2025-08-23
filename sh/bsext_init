@@ -20,13 +20,27 @@ PROMETHEUS_BIN="${SCRIPT_PATH}/prometheus/prometheus"
 PROMETHEUS_CONFIG="${SCRIPT_PATH}/prometheus/prometheus.yml"
 PROMETHEUS_DATA="/tmp/prometheus_data"
 PROMETHEUS_PIDFILE="/var/run/prometheus.pid"
-PROMETHEUS_PORT=9090
 
 GRAFANA_BIN="${SCRIPT_PATH}/grafana/bin/grafana-server"
 GRAFANA_CONFIG="${SCRIPT_PATH}/grafana/conf/grafana.ini"
 GRAFANA_HOME="${SCRIPT_PATH}/grafana"
 GRAFANA_PIDFILE="/var/run/grafana.pid"
-GRAFANA_PORT=3000
+
+# Read port configuration from registry with defaults
+PROMETHEUS_PORT=$(registry extension ${EXTENSION_NAME}-prometheus-port 2>/dev/null)
+if [ -z "${PROMETHEUS_PORT}" ]; then
+    PROMETHEUS_PORT=9090  # Default Prometheus port
+fi
+
+GRAFANA_PORT=$(registry extension ${EXTENSION_NAME}-grafana-port 2>/dev/null)
+if [ -z "${GRAFANA_PORT}" ]; then
+    GRAFANA_PORT=3000  # Default Grafana port
+fi
+
+NODE_EXPORTER_PORT=$(registry extension ${EXTENSION_NAME}-prometheus-node-exporter-port 2>/dev/null)
+if [ -z "${NODE_EXPORTER_PORT}" ]; then
+    NODE_EXPORTER_PORT=9100  # Default Node Exporter port
+fi
 
 # Writable directories for data and logs
 DATA_BASE_DIR="/tmp"
@@ -44,18 +58,86 @@ GRAFANA_DATA_DIR="${DATA_BASE_DIR}/grafana_data"
 GRAFANA_LOG_DIR="${DATA_BASE_DIR}/grafana_logs"
 GRAFANA_LOG="${GRAFANA_LOG_DIR}/grafana.log"
 
+# Function to generate Prometheus configuration with registry values
+generate_prometheus_config() {
+    local config_file="${PROMETHEUS_CONFIG}"
+    echo "Generating Prometheus configuration with registry values..."
+    echo "  Node Exporter Port: ${NODE_EXPORTER_PORT}"
+    echo "  Grafana Port: ${GRAFANA_PORT}"
+    
+    cat > "${config_file}" << EOF
+# Prometheus configuration for BrightSign monitoring
+# Generated dynamically from registry settings
+global:
+  scrape_interval: 15s          # How frequently to scrape targets
+  evaluation_interval: 15s      # How frequently to evaluate rules
+  scrape_timeout: 10s           # Timeout for scraping
+
+  # Attach labels to all time series
+  external_labels:
+    monitor: 'brightsign-local'
+    player: 'local'
+
+# Alertmanager configuration (optional, disabled by default)
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+          # - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  # - "rules/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:${PROMETHEUS_PORT}']
+        labels:
+          instance: 'prometheus-local'
+
+  # BrightSign Node Exporter metrics
+  - job_name: 'brightsign-node'
+    static_configs:
+      - targets: ['localhost:${NODE_EXPORTER_PORT}']
+        labels:
+          instance: 'brightsign-player'
+          player_type: 'local'
+    
+    # Adjust scrape settings for Node Exporter
+    scrape_interval: 30s  # Less frequent for resource conservation
+    scrape_timeout: 10s
+
+  # Optional: Grafana metrics
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['localhost:${GRAFANA_PORT}']
+        labels:
+          instance: 'grafana-local'
+    metrics_path: '/metrics'
+    scrape_interval: 60s  # Less frequent, not critical
+
+# Storage configuration
+# Data is stored in the path specified by --storage.tsdb.path
+# Retention is controlled by --storage.tsdb.retention.time (default 15d)
+EOF
+}
+
 # Function to check if auto-start is disabled
 check_auto_start() {
-    local DISABLE_AUTO_START="false"
+    local AUTO_START="true"  # Default to enabled
     local reg_disable=$(registry extension ${EXTENSION_NAME}-disable-auto-start 2>/dev/null)
     if [ -n "${reg_disable}" ]; then
-        DISABLE_AUTO_START=${reg_disable}
+        AUTO_START=${reg_disable}
     fi
     
-    if [ "${DISABLE_AUTO_START}" = "true" ]; then
-        echo "Auto-start is disabled for ${EXTENSION_NAME}"
+    if [ "${AUTO_START}" = "false" ]; then
+        echo "Auto-start is disabled for ${EXTENSION_NAME} (registry: ${EXTENSION_NAME}-disable-auto-start = false)"
         return 1
     fi
+    echo "Auto-start is enabled for ${EXTENSION_NAME} (registry: ${EXTENSION_NAME}-disable-auto-start = ${AUTO_START})"
     return 0
 }
 
@@ -198,6 +280,10 @@ do_start() {
     fi
     
     echo "Starting monitoring services..."
+    echo "Configuration from registry:"
+    echo "  Prometheus Port: ${PROMETHEUS_PORT}"
+    echo "  Grafana Port: ${GRAFANA_PORT}"
+    echo "  Node Exporter Port: ${NODE_EXPORTER_PORT}"
     echo "Log files will be written to:"
     echo "  Prometheus: ${PROMETHEUS_LOG}"
     echo "  Grafana: ${GRAFANA_LOG}"
@@ -205,6 +291,9 @@ do_start() {
     echo "  Prometheus: ${PROMETHEUS_DATA}"
     echo "  Grafana: ${GRAFANA_DATA_DIR}"
     echo ""
+    
+    # Generate Prometheus configuration with registry values
+    generate_prometheus_config
     
     # Start Prometheus
     start_prometheus true
@@ -231,6 +320,13 @@ do_stop() {
 do_run() {
     echo "Running monitoring services in foreground..."
     echo "Press Ctrl+C to stop"
+    echo "Configuration from registry:"
+    echo "  Prometheus Port: ${PROMETHEUS_PORT}"
+    echo "  Grafana Port: ${GRAFANA_PORT}"
+    echo "  Node Exporter Port: ${NODE_EXPORTER_PORT}"
+    
+    # Generate Prometheus configuration with registry values
+    generate_prometheus_config
     
     # Start Prometheus in background even in run mode
     start_prometheus true
@@ -245,19 +341,27 @@ do_status() {
     local prometheus_running=false
     local grafana_running=false
     
+    echo "=== Service Status ==="
     if [ -f ${PROMETHEUS_PIDFILE} ] && kill -0 $(cat ${PROMETHEUS_PIDFILE}) 2>/dev/null; then
         prometheus_running=true
-        echo "Prometheus is running (PID: $(cat ${PROMETHEUS_PIDFILE}))"
+        echo "Prometheus is running (PID: $(cat ${PROMETHEUS_PIDFILE}), Port: ${PROMETHEUS_PORT})"
     else
-        echo "Prometheus is not running"
+        echo "Prometheus is not running (Port: ${PROMETHEUS_PORT})"
     fi
     
     if [ -f ${GRAFANA_PIDFILE} ] && kill -0 $(cat ${GRAFANA_PIDFILE}) 2>/dev/null; then
         grafana_running=true
-        echo "Grafana is running (PID: $(cat ${GRAFANA_PIDFILE}))"
+        echo "Grafana is running (PID: $(cat ${GRAFANA_PIDFILE}), Port: ${GRAFANA_PORT})"
     else
-        echo "Grafana is not running"
+        echo "Grafana is not running (Port: ${GRAFANA_PORT})"
     fi
+    
+    echo ""
+    echo "=== Registry Configuration ==="
+    echo "Auto-start: $(registry extension ${EXTENSION_NAME}-disable-auto-start 2>/dev/null || echo 'true (default)')"
+    echo "Prometheus Port: ${PROMETHEUS_PORT}"
+    echo "Grafana Port: ${GRAFANA_PORT}" 
+    echo "Node Exporter Port: ${NODE_EXPORTER_PORT}"
     
     if [ "$prometheus_running" = true ] && [ "$grafana_running" = true ]; then
         return 0

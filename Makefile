@@ -11,7 +11,7 @@ TIMESTAMP := $(shell date +%s)
 HOST_ARCH := $(shell uname -m)
 HOST_OS := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 
-# Allow forcing architecture for testing (e.g., FORCE_ARCH=amd64 make testbuild)
+# Allow forcing architecture for testing (e.g., FORCE_ARCH=amd64 make test-build)
 ifdef FORCE_ARCH
     GO_ARCH := $(FORCE_ARCH)
     ARCH_SUFFIX := $(FORCE_ARCH)
@@ -119,11 +119,11 @@ NC := \033[0m # No Color
 
 # Default target (player build)
 .PHONY: all
-all: playerbuild
+all: player-build
 
 # Test build for local architecture
-.PHONY: testbuild
-testbuild:
+.PHONY: test-build
+test-build:
 	@echo "$(YELLOW)════════════════════════════════════════════════$(NC)"
 	@echo "$(GREEN)Building for TEST (Local Architecture)$(NC)"
 	@echo "Host: $(HOST_OS)/$(HOST_ARCH)"
@@ -138,14 +138,14 @@ testbuild:
 	@echo "$(YELLOW)To test locally:$(NC)"
 	@echo "  1. Mount the extension: make test-mount"
 	@echo "  2. Start services: make test-start"
-	@echo "  3. Access Prometheus: http://localhost:9090"
-	@echo "  4. Access Grafana: http://localhost:3000"
+	@echo "  3. Access Prometheus: http://localhost:9090 (configurable via registry: mon-prometheus-port)"
+	@echo "  4. Access Grafana: http://localhost:3000 (configurable via registry: mon-grafana-port)"
 	@echo "  5. Stop services: make test-stop"
 	@echo "  6. Unmount: make test-unmount"
 
 # Player build for ARM64 BrightSign
-.PHONY: playerbuild
-playerbuild:
+.PHONY: player-build
+player-build:
 	@echo "$(YELLOW)════════════════════════════════════════════════$(NC)"
 	@echo "$(GREEN)Building for PLAYER (ARM64 BrightSign)$(NC)"
 	@echo "Target: linux/arm64"
@@ -162,9 +162,9 @@ help:
 	@echo "Usage: make [target]"
 	@echo ""
 	@echo "$(GREEN)Build Modes:$(NC)"
-	@echo "  testbuild    - Build for local testing ($(HOST_OS)/$(HOST_ARCH))"
-	@echo "  playerbuild  - Build for BrightSign player (linux/arm64)"
-	@echo "  all          - Same as playerbuild (default)"
+	@echo "  test-build   - Build for local testing ($(HOST_OS)/$(HOST_ARCH))"
+	@echo "  player-build - Build for BrightSign player (linux/arm64)"
+	@echo "  all          - Same as player-build (default)"
 	@echo ""
 	@echo "$(GREEN)Test Mode Commands:$(NC)"
 	@echo "  test-mount   - Mount test build locally"
@@ -400,8 +400,8 @@ show-summary:
 	fi
 	@echo ""
 	@echo "Web Interfaces:"
-	@echo "  Prometheus: http://player:9090"
-	@echo "  Grafana:    http://player:3000 (admin/admin)"
+	@echo "  Prometheus: http://player:9090 (configurable via registry: mon-prometheus-port)"
+	@echo "  Grafana:    http://player:3000 (admin/admin, configurable via registry: mon-grafana-port)"
 	@echo "$(YELLOW)════════════════════════════════════════════════$(NC)"
 
 # Verify ARM64 binaries
@@ -482,7 +482,7 @@ test-package:
 test-mount:
 	@echo "$(YELLOW)→ Mounting test build...$(NC)"
 	@if [ ! -d "install-test" ]; then \
-		echo "$(RED)✗ Test build not found. Run 'make testbuild' first$(NC)"; \
+		echo "$(RED)✗ Test build not found. Run 'make test-build' first$(NC)"; \
 		exit 1; \
 	fi
 	@mkdir -p /tmp/bsext/ext_mon
@@ -551,6 +551,7 @@ test-start:
 	@echo "$(GREEN)✓ Services started$(NC)"
 	@echo "  Prometheus: http://localhost:9090"
 	@echo "  Grafana: http://localhost:3000 (admin/admin)"
+	@echo "  Note: Ports configurable via registry keys (see README.md)"
 
 # Stop test services
 .PHONY: test-stop
@@ -681,10 +682,6 @@ check-squashfs:
 .PHONY: force
 force:
 
-# Keep old target names for backward compatibility
-.PHONY: testbuild playerbuild
-testbuild: test-build
-playerbuild: player-build
 
 # Include any local overrides
 -include Makefile.local

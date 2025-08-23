@@ -122,8 +122,11 @@ tail -20 /var/log/messages | grep -E "monitoring|prometheus|grafana"
 tail -20 /var/log/prometheus.log 2>/dev/null || tail -20 /tmp/prometheus.log
 tail -20 /var/log/grafana.log 2>/dev/null || tail -20 /tmp/grafana_logs/grafana.log
 
-# Check if auto-start is disabled via registry
-registry extension mon-disable-auto-start
+# Check registry configuration
+registry extension mon-disable-auto-start      # Should be empty or "true" for auto-start
+registry extension mon-prometheus-port         # Custom Prometheus port (if set)
+registry extension mon-grafana-port           # Custom Grafana port (if set)  
+registry extension mon-prometheus-node-exporter-port  # Custom Node Exporter port (if set)
 
 # Check general extension status
 registry extension
@@ -158,7 +161,7 @@ export GF_PATHS_HOME=/var/volatile/bsext/ext_mon/grafana
 
 ### Issue: "Exec format error"
 - **Cause**: Binary architecture mismatch (trying to run AMD64 binaries on ARM64)
-- **Solution**: Rebuild extension using `make playerbuild` to ensure ARM64 binaries
+- **Solution**: Rebuild extension using `make player-build` to ensure ARM64 binaries
 
 ### Issue: "Permission denied" 
 - **Cause**: Binaries are not executable
