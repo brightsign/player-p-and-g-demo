@@ -117,18 +117,24 @@ registry extension mon-prometheus-node-exporter-port
 
 ## Default Dashboard
 
-The extension includes a BrightSign-optimized Node Exporter dashboard with the following panels:
-- **CPU Core Usage** - Per-core CPU utilization
-- **Memory Usage** - System memory utilization percentage
-- **Disk I/O** - Read/write metrics for eMMC and SD storage
-- **System Load** - 1m, 5m, 15m load averages
-- **SD Card Usage** - BrightSign-specific storage monitoring
-- **Temperatures** - All thermal zones (SoC, CPU cores, GPU, NPU)
-- **Uptime** - System uptime tracking
-- **Network I/O** - Ethernet interface statistics
-- **Memory Details** - Detailed memory breakdown
+The extension includes a BrightSign-optimized Node Exporter dashboard with **10 monitoring panels** in a 3x3+1 grid layout:
 
-All panels display data as time-series graphs for trend analysis.
+**Row 1 (Top):**
+- **CPU Core Use** - Per-core CPU utilization percentages
+- **System Load** - 1m, 5m, 15m load averages  
+- **Uptime (minutes)** - System uptime tracking
+
+**Row 2 (Middle):**
+- **Memory Usage** - System memory utilization percentage (0-100%)
+- **Temperatures** - All thermal zones (SoC, Big/Little CPU cores, GPU, NPU) with 25-45°C range
+- **% SD Card Used** - BrightSign-specific SD card usage percentage
+
+**Row 3 (Bottom):**
+- **Memory Details** - Detailed memory breakdown (Total, Available, Cached, Buffers)
+- **Network I/O (eth0)** - Ethernet receive/transmit rates
+- **Disk I/O (eMMC & SD)** - Read/write metrics for both storage devices
+
+All panels display data as **time-series graphs** for trend analysis with optimized scaling and color-coded thresholds.
 
 ## Troubleshooting
 
