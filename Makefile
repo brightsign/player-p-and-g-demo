@@ -681,5 +681,10 @@ check-squashfs:
 .PHONY: force
 force:
 
+# Keep old target names for backward compatibility
+.PHONY: testbuild playerbuild
+testbuild: test-build
+playerbuild: player-build
+
 # Include any local overrides
 -include Makefile.local
