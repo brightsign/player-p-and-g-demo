@@ -125,6 +125,37 @@ scrape_configs:
 EOF
 }
 
+# Function to generate Grafana datasource configuration with registry values
+generate_grafana_datasource_config() {
+    local datasource_dir="${SCRIPT_PATH}/grafana/provisioning/datasources"
+    local datasource_file="${datasource_dir}/prometheus.yaml"
+    echo "Generating Grafana datasource configuration with registry values..."
+    echo "  Prometheus Port: ${PROMETHEUS_PORT}"
+    
+    # Ensure directory exists
+    mkdir -p "${datasource_dir}"
+    
+    cat > "${datasource_file}" << EOF
+# Grafana datasource provisioning configuration
+# Generated dynamically from registry settings
+
+apiVersion: 1
+
+# List of datasources to insert/update
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://localhost:${PROMETHEUS_PORT}
+    isDefault: true
+    editable: true
+    jsonData:
+      timeInterval: "15s"
+      queryTimeout: "60s"
+      httpMethod: "POST"
+EOF
+}
+
 # Function to check if auto-start is disabled
 check_auto_start() {
     local AUTO_START="true"  # Default to enabled
@@ -295,6 +326,9 @@ do_start() {
     # Generate Prometheus configuration with registry values
     generate_prometheus_config
     
+    # Generate Grafana datasource configuration with registry values
+    generate_grafana_datasource_config
+    
     # Start Prometheus
     start_prometheus true
     sleep 2
@@ -327,6 +361,9 @@ do_run() {
     
     # Generate Prometheus configuration with registry values
     generate_prometheus_config
+    
+    # Generate Grafana datasource configuration with registry values
+    generate_grafana_datasource_config
     
     # Start Prometheus in background even in run mode
     start_prometheus true
