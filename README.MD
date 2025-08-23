@@ -6,7 +6,7 @@ A self-contained Prometheus and Grafana monitoring extension for BrightSign digi
 
 ```bash
 # Build the extension
-make playerbuild
+make player-build
 
 # Deploy to BrightSign player
 scp output/ext_mon-*.zip brightsign@player:/storage/sd/
@@ -45,10 +45,10 @@ ssh brightsign@player 'cd /storage/sd && unzip ext_mon-*.zip && bash ext_mon_ins
 
 ```bash
 # Player build (ARM64 for BrightSign)
-make playerbuild
+make player-build
 
 # Test build (local architecture)
-make testbuild
+make test-build
 
 # View all options
 make help
