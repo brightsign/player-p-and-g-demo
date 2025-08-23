@@ -37,7 +37,7 @@ if [ -z "${GRAFANA_PORT}" ]; then
     GRAFANA_PORT=3000  # Default Grafana port
 fi
 
-NODE_EXPORTER_PORT=$(registry extension ${EXTENSION_NAME}-prometheus-node-exporter-port 2>/dev/null)
+NODE_EXPORTER_PORT=$(registry networking prometheus-node-exporter-port 2>/dev/null)
 if [ -z "${NODE_EXPORTER_PORT}" ]; then
     NODE_EXPORTER_PORT=9100  # Default Node Exporter port
 fi
@@ -127,7 +127,7 @@ EOF
 
 # Function to generate Grafana datasource configuration with registry values
 generate_grafana_datasource_config() {
-    local datasource_dir="${SCRIPT_PATH}/grafana/provisioning/datasources"
+    local datasource_dir="${SCRIPT_PATH}/grafana/conf/provisioning/datasources"
     local datasource_file="${datasource_dir}/prometheus.yaml"
     echo "Generating Grafana datasource configuration with registry values..."
     echo "  Prometheus Port: ${PROMETHEUS_PORT}"
@@ -147,6 +147,7 @@ datasources:
     type: prometheus
     access: proxy
     url: http://localhost:${PROMETHEUS_PORT}
+    uid: PBFA97CFB590B2093
     isDefault: true
     editable: true
     jsonData:
