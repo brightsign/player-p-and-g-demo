@@ -1,4 +1,4 @@
-# BrightSign Prometheus + Grafana Demonstration Extension
+# BrightSign Extension: Prometheus + Grafana
 
 **FOR INTERNAL AND DEMONSTRATION USE ONLY - NOT RECOMMENDED FOR USE ON PRODUCTION PLAYERS**
 
