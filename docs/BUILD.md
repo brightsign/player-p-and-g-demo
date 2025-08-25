@@ -55,7 +55,7 @@ colima start
 # Run build in container
 docker run --rm -it -v $(pwd):/workspace ubuntu:22.04
 # Inside container:
-apt-get update && apt-get install -y squashfs-tools curl tar make  
+apt-get update && apt-get install -y squashfs-tools curl tar make
 cd /workspace
 make player-build
 ```
@@ -79,8 +79,8 @@ For convenience, use this one-liner to build in a container:
 ```bash
 # Docker (works on macOS, Linux, Windows with Docker)
 docker run --rm -v $(pwd):/workspace -w /workspace ubuntu:22.04 bash -c "
-  apt-get update && 
-  apt-get install -y squashfs-tools curl tar make && 
+  apt-get update &&
+  apt-get install -y squashfs-tools curl tar make &&
   make player-build
 "
 ```
@@ -297,6 +297,24 @@ ssh brightsign@player
 # - Grafana: http://player:3000 (admin/admin, configurable via registry: mon-grafana-port)
 ```
 
+### Manual Control
+```bash
+# Check service status
+/var/volatile/bsext/ext_mon/bsext_init status
+
+# Start services
+/var/volatile/bsext/ext_mon/bsext_init start
+
+# Stop services
+/var/volatile/bsext/ext_mon/bsext_init stop
+
+# Restart services (apply configuration changes)
+/var/volatile/bsext/ext_mon/bsext_init restart
+
+# Run in foreground (debugging)
+/var/volatile/bsext/ext_mon/bsext_init run
+```
+
 ## Advanced Configuration
 
 ### Version Customization
@@ -365,7 +383,7 @@ sudo dnf install squashfs-tools      # RHEL/CentOS/Fedora
 
 # macOS/Windows: Use container
 docker run --rm -v $(pwd):/workspace -w /workspace ubuntu:22.04 bash -c "
-  apt-get update && apt-get install -y squashfs-tools curl tar make && 
+  apt-get update && apt-get install -y squashfs-tools curl tar make &&
   make player-build
 "
 
@@ -456,7 +474,7 @@ tail -20 /var/log/grafana.log
 
 The generated deployment package includes:
 - ✅ Prometheus 2.48.0 (ARM64)
-- ✅ Grafana 10.2.3 (ARM64) 
+- ✅ Grafana 10.2.3 (ARM64)
 - ✅ Pre-configured dashboards (BrightSign Node Exporter)
 - ✅ Service management scripts
 - ✅ Auto-start on boot capability

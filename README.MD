@@ -1,29 +1,20 @@
-# BrightSign Mon Extension
+# BrightSign Prometheus + Grafana Demonstration Extension
+
+FOR INTERNAL AND DEMONSTRATION USE ONLY - NOT RECOMMENDED FOR USE ON PRODUCTION PLAYERS
 
 A self-contained Prometheus and Grafana monitoring extension for BrightSign digital signage players. Enables local metrics collection and visualization without external infrastructure.
 
-## Quick Start
+Useful for internal Engineering testing and for ease of demonstration of "what is possible" using the existing Prometheus Node Exporter capabilities.
 
-### Prerequisites
-**⚠️ Requires Linux environment with squashfs-tools:**
-- **Linux**: Install `squashfs-tools` package  
-- **macOS/Windows**: Use Docker container or WSL
+<center>
+<img src="images/player-grafana.png" alt="Example Dashboard" width="640" height="480">
+<small>Example Plotted Data in Grafana</small>
+</center>
 
-See [BUILD.md](docs/BUILD.md) for detailed setup instructions.
+### How to Use
 
-### Build and Deploy
-```bash
-# Build the extension (requires Linux + squashfs-tools)
-make player-build
+Point your browser at the player:
 
-# Transfer to player
-scp output/ext_mon-*.zip brightsign@player:/storage/sd/
-
-# Install on player
-ssh brightsign@player 'cd /storage/sd && unzip ext_mon-*.zip && bash ext_mon_install-lvm.sh && reboot'
-```
-
-### Access Monitoring
 - **Prometheus**: http://player:9090
 - **Grafana**: http://player:3000 (admin/admin)
 
@@ -31,15 +22,13 @@ ssh brightsign@player 'cd /storage/sd && unzip ext_mon-*.zip && bash ext_mon_ins
 
 - **Prometheus 2.48.0** (ARM64) - Metrics collection and storage
 - **Grafana 10.2.3** (ARM64) - Dashboard and visualization
-- **Pre-configured dashboards** - BrightSign-optimized Node Exporter dashboard (default) plus system monitoring
+- **Pre-configured dashboards** - BrightSign-optimized Node Exporter dashboard
 - **Automatic service management** - Starts on boot, survives reboots
 - **Registry-based configuration** - Customize ports and behavior via BrightSign registry
 
 ## Configuration
 
 The extension supports runtime configuration via BrightSign registry keys:
-
-### Registry Configuration Options
 
 | Registry Key | Default | Description |
 |--------------|---------|-------------|
@@ -49,6 +38,8 @@ The extension supports runtime configuration via BrightSign registry keys:
 | `mon-prometheus-node-exporter-port` | `9100` | Port where Node Exporter is running |
 
 ### Configuration Examples
+
+Use these commands to set/change the needed registry settings:
 
 ```bash
 # Disable auto-start (services won't start on boot)
@@ -74,43 +65,9 @@ registry extension mon-prometheus-node-exporter-port
 /var/volatile/bsext/ext_mon/bsext_init restart
 ```
 
-## Service Management
-
-### Manual Control
-```bash
-# Check service status
-/var/volatile/bsext/ext_mon/bsext_init status
-
-# Start services
-/var/volatile/bsext/ext_mon/bsext_init start
-
-# Stop services  
-/var/volatile/bsext/ext_mon/bsext_init stop
-
-# Restart services (apply configuration changes)
-/var/volatile/bsext/ext_mon/bsext_init restart
-
-# Run in foreground (debugging)
-/var/volatile/bsext/ext_mon/bsext_init run
-```
-
-### Service Information
-- **Auto-start**: Services start automatically on boot (unless disabled via registry)
-- **Data storage**: Prometheus data in `/tmp/prometheus_data`, Grafana data in `/tmp/grafana_data`
-- **Logs**: Written to `/var/log/` (or `/tmp/` if not writable)
-  - Prometheus: `/var/log/prometheus.log`
-  - Grafana: `/var/log/grafana.log`
-
-## Supported Hardware
-
-- **BrightSign Series 4 and 5** players (ARM64 architecture)
-- **BrightSign OS 9.x** or later
-- **Minimum 4GB** free storage space
-- **Network connectivity** for accessing web interfaces
-
 ## Performance Impact
 
-- **CPU**: ~5-10% during normal operation  
+- **CPU**: ~5-10% during normal operation
 - **Memory**: ~150-200MB combined
 - **Storage**: ~650MB installed
 - **Network**: Local only (no external traffic)
@@ -121,7 +78,7 @@ The extension includes a BrightSign-optimized Node Exporter dashboard with **10 
 
 **Row 1 (Top):**
 - **CPU Core Use** - Per-core CPU utilization percentages
-- **System Load** - 1m, 5m, 15m load averages  
+- **System Load** - 1m, 5m, 15m load averages
 - **Uptime (minutes)** - System uptime tracking
 
 **Row 2 (Middle):**
@@ -136,77 +93,16 @@ The extension includes a BrightSign-optimized Node Exporter dashboard with **10 
 
 All panels display data as **time-series graphs** for trend analysis with optimized scaling and color-coded thresholds.
 
-## Troubleshooting
-
-### Service Issues
-```bash
-# Check if services are running
-/var/volatile/bsext/ext_mon/bsext_init status
-
-# View recent logs
-tail -20 /var/log/prometheus.log
-tail -20 /var/log/grafana.log
-
-# Check registry configuration
-registry extension mon-disable-auto-start
-registry extension mon-prometheus-port
-registry extension mon-grafana-port
-```
-
-### Web Interface Issues
-- **Cannot access interfaces**: Check if services are running and ports are not blocked
-- **Data not showing**: Verify Node Exporter is running on the configured port (default 9100)
-- **Dashboard issues**: Check Grafana logs for provisioning errors
-
-### Common Solutions
-```bash
-# Restart services to apply configuration changes
-/var/volatile/bsext/ext_mon/bsext_init restart
-
-# Reset to default ports
-registry extension mon-prometheus-port
-registry extension mon-grafana-port
-registry extension mon-prometheus-node-exporter-port
-
-# Enable auto-start if disabled
-registry extension mon-disable-auto-start
-```
-
-See [installation-troubleshooting.md](docs/installation-troubleshooting.md) for detailed troubleshooting steps.
 
 ## Removal
 
-To remove the extension:
-
-```bash
-# Connect to player and stop services
-ssh brightsign@player
-/var/volatile/bsext/ext_mon/bsext_init stop
-
-# Verify services stopped
-ps | grep -E "prometheus|grafana"
-
-# Run uninstall script
-/var/volatile/bsext/ext_mon/uninstall.sh
-
-# Reboot to complete removal
-reboot
-```
-
-Alternatively, perform a Factory Reset on the player to remove all extensions.
-
-## Build Instructions
-
-For building the extension, testing locally, or modifying configurations:
-
-- **[BUILD.md](docs/BUILD.md)** - Complete build instructions, testing, and deployment
-- **[installation-troubleshooting.md](docs/installation-troubleshooting.md)** - Detailed troubleshooting guide
+The easist way to to remove the extension is to do a factory reset.
 
 ## Package Information
 
 - **Build Date**: Generated at build time
 - **Prometheus**: 2.48.0 (ARM64)
-- **Grafana**: 10.2.3 (ARM64) 
+- **Grafana**: 10.2.3 (ARM64)
 - **Package Size**: ~200MB compressed, ~650MB installed
 - **License**: Apache 2.0 License
 
