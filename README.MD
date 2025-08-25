@@ -1,6 +1,6 @@
 # BrightSign Prometheus + Grafana Demonstration Extension
 
-FOR INTERNAL AND DEMONSTRATION USE ONLY - NOT RECOMMENDED FOR USE ON PRODUCTION PLAYERS
+**FOR INTERNAL AND DEMONSTRATION USE ONLY - NOT RECOMMENDED FOR USE ON PRODUCTION PLAYERS**
 
 A self-contained Prometheus and Grafana monitoring extension for BrightSign digital signage players. Enables local metrics collection and visualization without external infrastructure.
 
