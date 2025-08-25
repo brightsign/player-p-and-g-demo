@@ -106,6 +106,20 @@ The easist way to to remove the extension is to do a factory reset.
 - **Package Size**: ~200MB compressed, ~650MB installed
 - **License**: Apache 2.0 License
 
-This extension incorporates:
-- Prometheus (Apache License 2.0)
-- Grafana (AGPL v3.0)
+
+## Licensing
+
+This extension is licensed under the Apache 2.0 license as specified [here](./LICENSE.md).
+
+Prometheus is also released under the Apache 2.0 license.
+
+Grafana is released under the AGPL.  Since we are including it in-whole and are not extending Grafana those terms are not applicable to this release. This is covered under that license as follows:
+
+```bash
+"A compilation of a covered work with other separate and independent works,
+which are not by their nature extensions of the covered work, and which are not
+combined with it such as to form a larger program, in or on a volume of a storage
+or distribution medium, is called an 'aggregate' if the compilation and its
+resulting copyright are not used to limit the access or legal rights of the
+compilation's users beyond what the individual works permit."
+```
