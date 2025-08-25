@@ -113,7 +113,7 @@ This extension is licensed under the Apache 2.0 license as specified [here](./LI
 
 Prometheus is also released under the Apache 2.0 license.
 
-Grafana is released under the AGPL.  Since we are including it in-whole and are not extending Grafana those terms are not applicable to this release. This is covered under that license as follows:
+Grafana is released under the [GNU Affero General Public License](https://www.gnu.org/licenses/agpl-3.0.en.html).  Since we are including it as an aggregate and are not extending Grafana those terms are not applicable to this release. This is covered under that license as follows:
 
 ```bash
 "A compilation of a covered work with other separate and independent works,
