@@ -7,7 +7,7 @@ A self-contained Prometheus and Grafana monitoring extension for BrightSign digi
 Useful for internal Engineering testing and for ease of demonstration of "what is possible" using the existing Prometheus Node Exporter capabilities.
 
 <center>
-<img src="images/player-grafana.png" alt="Example Dashboard" width="640" height="480">
+<img src="images/player-grafana.png" alt="Example Dashboard" width="1024" height="768">
 <small>Example Plotted Data in Grafana</small>
 </center>
 
