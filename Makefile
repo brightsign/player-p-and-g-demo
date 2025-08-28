@@ -685,3 +685,11 @@ force:
 
 # Include any local overrides
 -include Makefile.local
+
+# zip
+TIMESTAMP := $(shell date +%s)
+zip:
+	(cd install;../sh/make-extension-lvm)
+	@-rm *zip
+	(cd install;zip "../mon-ext-$(TIMESTAMP).zip" ext_mon*)
+	@-rm -Rf ./install/ext_mon*
